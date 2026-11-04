@@ -205,10 +205,22 @@ class GarminSession:
     def run(self, fn: Callable[[Ctx], T]) -> T:
         """Run one tool's logic against the logged-in client, under the lock."""
         with self._lock:
-            try:
-                result = fn(self.ctx())
-            except Exception as exc:
-                raise self.failure(exc) from exc
+            # Several servers can share one token file (one per client or window). When
+            # another one renews the tokens, ours are revoked even though the file on disk
+            # is good. So on an auth failure, drop the login, re-read the file and retry
+            # once before reporting anything.
+            previous_error = self.last_error
+            for attempt in (0, 1):
+                try:
+                    result = fn(self.ctx())
+                except Exception as exc:
+                    err = self.failure(exc)  # also drops a dead login
+                    if attempt == 0 and isinstance(err, AuthExpired):
+                        self.last_error = previous_error  # recovered: don't report it
+                        self.cache.clear()
+                        continue
+                    raise err from exc
+                break
             self.last_ok_at = datetime.now(self.tz)
             return result
 
