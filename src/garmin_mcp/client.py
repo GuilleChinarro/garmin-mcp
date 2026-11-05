@@ -210,14 +210,16 @@ class GarminSession:
             # is good. So on an auth failure, drop the login, re-read the file and retry
             # once before reporting anything.
             previous_error = self.last_error
-            for attempt in (0, 1):
+            for attempt in range(3):
                 try:
                     result = fn(self.ctx())
                 except Exception as exc:
                     err = self.failure(exc)  # also drops a dead login
-                    if attempt == 0 and isinstance(err, AuthExpired):
+                    if attempt < 2 and isinstance(err, AuthExpired):
                         self.last_error = previous_error  # recovered: don't report it
                         self.cache.clear()
+                        # Garmin can take a few seconds to accept freshly renewed tokens
+                        time.sleep(3 * (attempt + 1))
                         continue
                     raise err from exc
                 break
