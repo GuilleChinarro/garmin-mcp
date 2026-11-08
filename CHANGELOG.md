@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- curl_cffi DNS fallback: when curl_cffi's built-in resolver fails ("Could not resolve
+  host ... Misformatted DNS reply") the name is resolved through the OS, pinned with
+  CURLOPT_RESOLVE for 30 minutes and the call is retried once. Covers data calls and
+  garminconnect's token refresh/login. `garmin_status` reports when it was used.
+
 ## 0.1.0 - 2026-10-07
 
 First release.
