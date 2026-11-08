@@ -1,4 +1,4 @@
-﻿"""The Windows 403 fallback.
+"""The Windows 403 fallback.
 
 garminconnect sends every data call through `Client._api_session.request(...)`, a plain
 `requests.Session`. On some Windows 11 machines Cloudflare answers those calls with 403
@@ -17,6 +17,8 @@ from __future__ import annotations
 import threading
 from datetime import datetime
 from typing import Any
+
+from . import dns_fallback
 
 
 class HybridSession:
@@ -57,6 +59,11 @@ class HybridSession:
         return resp
 
     def describe(self) -> str:
+        text = self._describe_mode()
+        dns = dns_fallback.describe()
+        return f"{text}; {dns}" if dns else text
+
+    def _describe_mode(self) -> str:
         if self.mode == "requests":
             return "requests only (fallback disabled by GARMIN_MCP_HTTP=requests)"
         if self.mode == "curl_cffi":
@@ -74,7 +81,11 @@ class HybridSession:
 
 
 def install(garmin: Any, mode: str) -> HybridSession | None:
-    """Swap garminconnect's API session for a HybridSession. None if it can't be done."""
+    """Swap garminconnect's API session for a HybridSession. None if it can't be done.
+
+    Also arms the curl_cffi DNS fallback (dns_fallback.py) for the whole process.
+    """
+    dns_fallback.install()
     client = getattr(garmin, "client", None)
     inner = getattr(client, "_api_session", None)
     if inner is None or not hasattr(inner, "request"):
